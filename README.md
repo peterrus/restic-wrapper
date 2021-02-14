@@ -35,3 +35,6 @@ export NOTIFICATION_MAIL_FROM=backups@cheesefactory.com
 
 ## Keep in mind
 - pause backups while restoring, restore dies when lockfile gets created (I think)
+
+## Changelog
+**v0.1.0**: Added `export-config` option to create a tarball of all your config files.
