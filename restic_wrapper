@@ -36,6 +36,11 @@ restic_wrapper <backup_name> backup-full
 
 restic_wrapper <backup_name> run <restic command + parameters>
   Directly run restic command, env file gets sourced
+
+restic_wrapper export-config
+  Bundles all config files into a tarball in the current directory.
+  Please keep this copy in a safe place as you will need in a disaster recovery scenario
+  and because it contains the private keys for your backups.
 EOF
 }
 
@@ -47,6 +52,11 @@ BACKUP_NAME=$1
 
 [ -z "$BACKUP_NAME" ] && { echo "backup_name argument not given"; show_help; exit 1; }
 [ "$BACKUP_NAME" == "help" ] && { show_help; exit 1; }
+[ "$BACKUP_NAME" == "export-config" ] && { 
+  ARCHIVE_NAME=restic_wrapper-configs-`date_now_safe`.tar.gz
+  tar cf $ARCHIVE_NAME *.env *.excludefile && echo "Configs exported to $ARCHIVE_NAME. Please keep this file safe and don't loose it!"
+  exit 0;
+}
 
 [ -z "$ACTION" ] && { echo "action argument not given"; show_help; exit 1; }
 
