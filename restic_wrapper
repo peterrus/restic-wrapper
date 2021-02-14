@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+
+# @TODO:
+# - rewrite to use try/catch pattern (use trap)
+
+set -o errexit
+
+# Needed because https://github.com/restic/restic/pull/3069
+export GODEBUG='asyncpreemptoff=1'
+
+function date_now {
+  date "+%Y-%m-%d %H:%M:%S"
+}
+
+function date_now_safe {
+  date "+%Y%m%d-%H%M%S"
+}
+
+function show_help {
+  cat <<EOF
+restic_wrapper <backup_name> full-auto-backup
+  All in one (noninteractive, for cronjobs) action that:
+    - creates a snapshot
+    - purges old snapshots
+    - checks repository integrity
+    - shows no output but mails it
+
+restic_wrapper <backup_name> backup
+  Runs a backup in interactive mode (shows output)
+
+restic_wrapper <backup_name> backup-full
+  All in one interactive action that:
+    - creates a snapshot
+    - purges old snapshots
+    - checks repository integrity
+
+restic_wrapper <backup_name> run <restic command + parameters>
+  Directly run restic command, env file gets sourced
+EOF
+}
+
+# Parse args
+SCRIPT=`realpath $0`
+SCRIPTPATH=`dirname $SCRIPT`
+ACTION=$2
+BACKUP_NAME=$1
+
+[ -z "$BACKUP_NAME" ] && { echo "backup_name argument not given"; show_help; exit 1; }
+[ "$BACKUP_NAME" == "help" ] && { show_help; exit 1; }
+
+[ -z "$ACTION" ] && { echo "action argument not given"; show_help; exit 1; }
+
+source $SCRIPTPATH/$BACKUP_NAME.env
+source $SCRIPTPATH/smtp.env
+
+LOGFILE=/tmp/restic_wrapper_log_$BACKUP_NAME-`date_now_safe`.log
+
+case $ACTION in
+
+    full-auto-backup )
+      echo -e "[wrapper][`date_now`] Starting backup process" &> $LOGFILE
+			
+      RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
+			SUCCESS=true
+
+      echo -e "\n\n[wrapper][`date_now`] Creating snapshot" &>> $LOGFILE
+      restic \
+				--exclude-file        $RESTIC_EXCLUDE_FILE \
+				backup                $RESTIC_SOURCE &>> $LOGFILE || SUCCESS=false
+
+      if [[ "$SUCCESS" == "true" ]]; then 
+				
+				echo -e "\n\n[wrapper][`date_now`] Purging old snapshots" &>> $LOGFILE
+				restic forget --prune -c \
+					--keep-daily 		14 \
+					--keep-weekly		8 \
+					--keep-monthly	6 \
+					--keep-yearly   5 \
+					&>> $LOGFILE || SUCCESS=false
+
+				if [[ "$SUCCESS" == "true" ]]; then
+					
+					echo -e "\n\n[wrapper][`date_now`] Checking repository integrity" &>> $LOGFILE
+					restic check &>> $LOGFILE || SUCCESS=false
+					
+					if [[ "$SUCCESS" == "true" ]]; then
+            echo -e "\n\n[wrapper][`date_now`] All tasks completed succesfully" &>> $LOGFILE
+					fi
+
+				fi
+
+			fi
+			;;
+
+    # # aditional actions can be defined like this
+    # # use NOMAIL=true to prevent sending a mail with the console output
+    # someaction )
+    #   restic dosomestuff &> $LOGFILE
+    #   ;;
+
+    backup )
+      NOMAIL=true
+      RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
+
+      restic \
+				--exclude-file        $RESTIC_EXCLUDE_FILE \
+				backup                $RESTIC_SOURCE
+    ;;
+
+    backup-full )
+
+      NOMAIL=true
+      RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
+
+      restic \
+				--exclude-file        $RESTIC_EXCLUDE_FILE \
+				backup                $RESTIC_SOURCE
+
+      restic forget --prune -c \
+        --keep-daily 		14 \
+        --keep-weekly		8 \
+        --keep-monthly	6 \
+        --keep-yearly   5
+
+      restic check
+    ;;
+
+		# for interactive use in the console, prints to console instead of email
+		run )
+			NOMAIL=true
+      shift
+			ARGUMENTS=`echo "$@" | cut -d " " -f2-`
+			restic $ARGUMENTS
+		;;
+
+    help )
+      show_help
+      exit 1
+    ;;
+
+    * )
+      show_help
+      exit 1
+    ;;
+esac
+
+# handle mail sending except, for actions that set NOMAIL=true
+# mail subject will contain the action that failed
+# mail body will contain the restic output (both stderr and stdout)
+if [[ $NOMAIL != "true" ]]; then
+	# send mail on failure
+	if [[ "$SUCCESS" == "false" ]]; then
+		cat $LOGFILE | s-nail -s "$ACTION FAIL: $BACKUP_NAME" \
+			-S smtp-use-starttls \
+			-S smtp-auth=login \
+			-S smtp=smtp://$NOTIFICATION_SMTP_URL \
+			-S from="$NOTIFICATION_MAIL_FROM" \
+			-S smtp-auth-user=$NOTIFICATION_SMTP_USER \
+			-S smtp-auth-password=$NOTIFICATION_SMTP_PASSWORD \
+			$MAILTO
+	else
+		# send mail on success
+		cat $LOGFILE | s-nail -s "$ACTION OK: $BACKUP_NAME" \
+			-S smtp-use-starttls \
+			-S smtp-auth=login \
+			-S smtp=smtp://$NOTIFICATION_SMTP_URL \
+			-S from="$NOTIFICATION_MAIL_FROM" \
+			-S smtp-auth-user=$NOTIFICATION_SMTP_USER \
+			-S smtp-auth-password=$NOTIFICATION_SMTP_PASSWORD \
+			$MAILTO
+	fi
+
+	rm $LOGFILE
+fi
+
