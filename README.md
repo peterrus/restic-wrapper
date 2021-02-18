@@ -19,13 +19,13 @@ export RESTIC_PASSWORD=sup3rs3cr3tp4ssphr4s3hunter2
 export RESTIC_SOURCE=/home/user/secret_cheese_recipes
 ```
 
-cheesefactory.excludefile:
+cheesefactory.excludefile (must exist, can be empty):
 ```
 /home/user/secret_cheese_recipes/ignore_this_dir/
 /home/user/secret_cheese_recipes/ignore_this_dir_also/
 ```
 
-smtp.env
+smtp.env  (must exist, can be empty):
 ```
 export NOTIFICATION_SMTP_URL=smtp.eu.mailgun.org:587
 export NOTIFICATION_SMTP_USER=user
