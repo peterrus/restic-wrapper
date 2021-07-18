@@ -1,5 +1,15 @@
 # Restic Backup
 
+<!-- vim-markdown-toc GFM -->
+
+* [Help](#help)
+* [Crontab](#crontab)
+* [Config files](#config-files)
+* [Keep in mind](#keep-in-mind)
+* [Changelog](#changelog)
+
+<!-- vim-markdown-toc -->
+
 ## Help 
 ```
 ./restic_wrapper help
@@ -10,7 +20,9 @@
  30 3   */2 *   *       ~/bin/restic_wrapper cheesefactory full-auto-backup
 ```
 
-## Config files (must be sibling files of this script)
+## Config files
+*****Must be sibling files of this script.**
+
 cheesefactory.env:
 ```
 export MAILTO=admin@cheesefactory.com
