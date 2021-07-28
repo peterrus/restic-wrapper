@@ -83,10 +83,11 @@ case $ACTION in
 				
 				echo -e "\n\n[wrapper][`date_now`] Purging old snapshots" &>> $LOGFILE
 				restic forget --prune -c \
-					--keep-daily 		14 \
-					--keep-weekly		8 \
-					--keep-monthly	6 \
-					--keep-yearly   5 \
+                    --keep-daily 		14 \
+                    --keep-weekly		8 \
+                    --keep-monthly	6 \
+                    --keep-yearly   5 \
+                    --keep-tag keep
 					&>> $LOGFILE || SUCCESS=false
 
 				if [[ "$SUCCESS" == "true" ]]; then
