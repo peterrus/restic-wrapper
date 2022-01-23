@@ -72,7 +72,7 @@ case $ACTION in
       echo -e "[wrapper][`date_now`] Starting backup process" &> $LOGFILE
 			
       RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
-			SUCCESS=true
+      SUCCESS=true
 
       echo -e "\n\n[wrapper][`date_now`] Creating snapshot" &>> $LOGFILE
       restic \
@@ -87,7 +87,7 @@ case $ACTION in
                     --keep-weekly		8 \
                     --keep-monthly	6 \
                     --keep-yearly   5 \
-                    --keep-tag keep
+                    --keep-tag keep \
 					&>> $LOGFILE || SUCCESS=false
 
 				if [[ "$SUCCESS" == "true" ]]; then
