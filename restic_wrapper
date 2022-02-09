@@ -3,41 +3,37 @@
 # @TODO:
 # - rewrite to use try/catch pattern (use trap)
 
-set -o errexit
-
-# Needed because https://github.com/restic/restic/pull/3069
-export GODEBUG='asyncpreemptoff=1'
+# Exit the script as soon as something fails.
+# If you care about unexpected script failures you should configure your
+# systems MTA for cron (https://unix.stackexchange.com/questions/505453/why-does-cron-require-mta-for-logging)
+# Failures during actions (as defined in 'enabled_actions') will be sent to the notification script
+# regardless.
+set -e
 
 function date_now {
-  date "+%Y-%m-%d %H:%M:%S"
+    date "+%Y-%m-%d %H:%M:%S"
 }
 
 function date_now_safe {
-  date "+%Y%m%d-%H%M%S"
+    date "+%Y%m%d-%H%M%S"
 }
 
 function show_help {
-  cat <<EOF
-restic_wrapper <backup_name> full-auto-backup
-  All in one (noninteractive, for cronjobs) action that:
-    - creates a snapshot
-    - purges old snapshots
-    - checks repository integrity
-    - shows no output but mails it
+    cat <<EOF
+restic_wrapper -b <backup_name> -a backup
+  Creates a snapshot (backup)
 
-restic_wrapper <backup_name> backup
-  Runs a backup in interactive mode (shows output)
-
-restic_wrapper <backup_name> backup-full
-  All in one interactive action that:
+restic_wrapper -b <backup_name> -a backup-full
+  All in one action that:
     - creates a snapshot
     - purges old snapshots
     - checks repository integrity
 
-restic_wrapper <backup_name> run <restic command + parameters>
-  Directly run restic command, env file gets sourced
+restic_wrapper -b <backup_name> -a run -r <restic command + parameters>
+  Directly run restic command, env file gets sourced. For example a 
+  value for -r could be 'snapshots' or 'help' to see Restic's documentation.
 
-restic_wrapper export-config
+restic_wrapper -a export-config
   Bundles all config files into a tarball in the current directory.
   Please keep this copy in a safe place as you will need it in a disaster
   recovery scenario and because it contains the private keys for
@@ -45,143 +41,109 @@ restic_wrapper export-config
 EOF
 }
 
-# Parse args
+##################
+### Parse args ###
+##################
 SCRIPT=`realpath $0`
 SCRIPTPATH=`dirname $SCRIPT`
-ACTION=$2
-BACKUP_NAME=$1
 
-[ -z "$BACKUP_NAME" ] && { echo "backup_name argument not given"; show_help; exit 1; }
-[ "$BACKUP_NAME" == "help" ] && { show_help; exit 1; }
-[ "$BACKUP_NAME" == "export-config" ] && { 
-  ARCHIVE_NAME=restic_wrapper-configs-`date_now_safe`.tar.gz
-  tar cf $ARCHIVE_NAME *.env *.excludefile && echo "Configs exported to $ARCHIVE_NAME. Please keep this file safe and don't loose it!"
-  exit 0;
+while getopts mb:a:r: arg; do
+  case $arg in
+    m) NOTIFICATION_ENABLED="true" ;;
+    b) BACKUP_NAME=$OPTARG ;;
+    a) ACTION=$OPTARG ;;
+    r) RUN_PARAMETERS=$OPTARG ;;
+  esac
+done
+
+[[ -z "$BACKUP_NAME" && "$ACTION" != "export-config" ]] && { echo "[ERROR] -b (backup name) argument not given"; show_help; exit 1; }
+[[ -z "$ACTION" && "$ACTION" != "export-config" ]] && { echo "[ERROR] -a (action) argument not given"; show_help; exit 1; }
+[[ "$ACTION" == "run" && -z "$RUN_PARAMETERS" ]] && { echo "[ERROR] -r (run arguments) argument not given"; show_help; exit 1; }
+
+### end parse args ###
+
+#######################################
+### source and initialize variables ###
+#######################################
+if [[ "$ACTION" != "export-config" ]]; then
+    source $SCRIPTPATH/$BACKUP_NAME.env
+    RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
+    LOGFILE=/tmp/restic_wrapper_log_$BACKUP_NAME-`date_now_safe`.log
+fi
+
+# Needed because https://github.com/restic/restic/pull/3069
+export GODEBUG='asyncpreemptoff=1'
+### end source and initialize variables ###
+
+### definition of actions ###
+function export-config {
+    ARCHIVE_NAME=restic_wrapper-configs-`date_now_safe`.tar.gz
+    tar cf $ARCHIVE_NAME *.env *.excludefile
+    echo "Configs exported to $ARCHIVE_NAME. Please keep this file safe and don't lose it!"
 }
 
-[ -z "$ACTION" ] && { echo "action argument not given"; show_help; exit 1; }
+function backup {
+    restic \
+        --exclude-file        $RESTIC_EXCLUDE_FILE \
+        backup                $RESTIC_SOURCE
+}
 
-source $SCRIPTPATH/$BACKUP_NAME.env
-source $SCRIPTPATH/smtp.env
+function backup-full {
+    echo -e "[wrapper][`date_now`] Starting backup process"
 
-LOGFILE=/tmp/restic_wrapper_log_$BACKUP_NAME-`date_now_safe`.log
-
-case $ACTION in
-
-    full-auto-backup )
-      echo -e "[wrapper][`date_now`] Starting backup process" &> $LOGFILE
-			
-      RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
-      SUCCESS=true
-
-      echo -e "\n\n[wrapper][`date_now`] Creating snapshot" &>> $LOGFILE
-      restic \
-				--exclude-file        $RESTIC_EXCLUDE_FILE \
-				backup                $RESTIC_SOURCE &>> $LOGFILE || SUCCESS=false
-
-      if [[ "$SUCCESS" == "true" ]]; then 
-				
-				echo -e "\n\n[wrapper][`date_now`] Purging old snapshots" &>> $LOGFILE
-				restic forget --prune -c \
-                    --keep-daily 		14 \
-                    --keep-weekly		8 \
-                    --keep-monthly	6 \
-                    --keep-yearly   5 \
-                    --keep-tag keep \
-					&>> $LOGFILE || SUCCESS=false
-
-				if [[ "$SUCCESS" == "true" ]]; then
-					
-					echo -e "\n\n[wrapper][`date_now`] Checking repository integrity" &>> $LOGFILE
-					restic check &>> $LOGFILE || SUCCESS=false
-					
-					if [[ "$SUCCESS" == "true" ]]; then
-            echo -e "\n\n[wrapper][`date_now`] All tasks completed succesfully" &>> $LOGFILE
-					fi
-
-				fi
-
-			fi
-			;;
-
-    # # aditional actions can be defined like this
-    # # use NOMAIL=true to prevent sending a mail with the console output
-    # someaction )
-    #   restic dosomestuff &> $LOGFILE
-    #   ;;
-
-    backup )
-      NOMAIL=true
-      RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
-
-      restic \
-				--exclude-file        $RESTIC_EXCLUDE_FILE \
-				backup                $RESTIC_SOURCE
-    ;;
-
-    backup-full )
-
-      NOMAIL=true
-      RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
-
-      restic \
-				--exclude-file        $RESTIC_EXCLUDE_FILE \
-				backup                $RESTIC_SOURCE
-
-      restic forget --prune -c \
+    echo -e "\n\n[wrapper][`date_now`] Creating snapshot"
+    restic \
+        --exclude-file        $RESTIC_EXCLUDE_FILE \
+        backup                $RESTIC_SOURCE
+    
+    echo -e "\n\n[wrapper][`date_now`] Purging old snapshots"
+    restic forget --prune -c \
         --keep-daily 		14 \
         --keep-weekly		8 \
-        --keep-monthly	6 \
-        --keep-yearly   5
+        --keep-monthly	    6 \
+        --keep-yearly       5 \
+        --keep-tag keep
 
-      restic check
-    ;;
+    echo -e "\n\n[wrapper][`date_now`] Checking repository integrity"
+    restic check
 
-		# for interactive use in the console, prints to console instead of email
-		run )
-			NOMAIL=true
-      shift
-			ARGUMENTS=`echo "$@" | cut -d " " -f2-`
-			restic $ARGUMENTS
-		;;
+    echo -e "\n\n[wrapper][`date_now`] All tasks completed succesfully"
+}
 
-    help )
-      show_help
-      exit 1
-    ;;
+# For running arbitrary restic commands. Sources the config files for you.
+function run {
+    restic $RUN_PARAMETERS
+}
+### end definition of actions ###
 
-    * )
-      show_help
-      exit 1
-    ;;
-esac
+################################
+### main program starts here ###
+################################
 
-# handle mail sending except, for actions that set NOMAIL=true
-# mail subject will contain the action that failed
-# mail body will contain the restic output (both stderr and stdout)
-if [[ $NOMAIL != "true" ]]; then
-	# send mail on failure
-	if [[ "$SUCCESS" == "false" ]]; then
-		cat $LOGFILE | s-nail -s "$ACTION FAIL: $BACKUP_NAME" \
-			-S smtp-use-starttls \
-			-S smtp-auth=login \
-			-S smtp=smtp://$NOTIFICATION_SMTP_URL \
-			-S from="$NOTIFICATION_MAIL_FROM" \
-			-S smtp-auth-user=$NOTIFICATION_SMTP_USER \
-			-S smtp-auth-password=$NOTIFICATION_SMTP_PASSWORD \
-			$MAILTO
-	else
-		# send mail on success
-		cat $LOGFILE | s-nail -s "$ACTION OK: $BACKUP_NAME" \
-			-S smtp-use-starttls \
-			-S smtp-auth=login \
-			-S smtp=smtp://$NOTIFICATION_SMTP_URL \
-			-S from="$NOTIFICATION_MAIL_FROM" \
-			-S smtp-auth-user=$NOTIFICATION_SMTP_USER \
-			-S smtp-auth-password=$NOTIFICATION_SMTP_PASSWORD \
-			$MAILTO
-	fi
+# register enabled actions (bash functions, see below) here
+enabled_actions=("export-config run backup backup-full")
 
-	rm $LOGFILE
+# check if the user inputted action is a valid action (a function is defined
+# and it's name is added to the 'enabled_actions' array and then run it
+if [[ " ${enabled_actions[*]} " =~ " ${ACTION} " ]]; then
+    if [[ "$NOTIFICATION_ENABLED" == "true" ]]; then
+        # run it and redirect all output to logfile
+        if $ACTION &> $LOGFILE; then
+            RESULT="OK"
+        else
+            RESULT="FAIL"
+        fi
+        # send logfile to notification script
+		cat $LOGFILE | $SCRIPTPATH/restic_notify "Restic - $BACKUP_NAME $ACTION $RESULT"
+        
+        rm $LOGFILE
+    else
+        # just run it and send output to console
+        $ACTION
+    fi
+else
+    # value was $action was not found in in enabled_actions, show help
+    show_help
+    exit 1
 fi
 

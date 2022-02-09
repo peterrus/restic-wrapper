@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+# $@ contains the 'subject' of the notification, along the lines of:
+#    'Restic - mydataset backup-full OK'
+# The body of the mail will be read from stdin
+
+SCRIPT=`realpath $0`
+SCRIPTPATH=`dirname $SCRIPT`
+
+source $SCRIPTPATH/smtp.env
+
+s-nail -s "$@" \
+    -S smtp-use-starttls \
+    -S smtp-auth=login \
+    -S smtp=smtp://$NOTIFICATION_SMTP_URL \
+    -S from="$NOTIFICATION_MAIL_FROM" \
+    -S smtp-auth-user=$NOTIFICATION_SMTP_USER \
+    -S smtp-auth-password=$NOTIFICATION_SMTP_PASSWORD \
+    $NOTIFICATION_MAIL_TO
+
