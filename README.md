@@ -60,5 +60,5 @@ You can set up a cronjob for (for example) nightly backups at 3:30.
 If your system has an [MTA](https://cronitor.io/cron-reference/no-mta-installed-discarding-output) installed you will also get email if restic_wrapper itself fails for some reason but because most users do not have a properly configured MTA I chose to integrate basic notification functionality in restic_wrapper. Another advantage of letting restic_wrapper handle the notifications is that it can send different mails for failed and succeeded jobs without needing a lot of bash magic (which not everyone might be comfortable with).
 
 ## Changelog
-**v0.2.0**: Externalize mail functionality to make the script a lot simpler (and refactored a bunch).
+**v0.2.0**: Externalize notification functionality to make the script a lot simpler (and refactored a bunch).
 **v0.1.0**: Added `export-config` option to create a tarball of all your config files.
