@@ -6,7 +6,7 @@
 # Exit the script as soon as something fails.
 # If you care about unexpected script failures you should configure your
 # systems MTA for cron (https://unix.stackexchange.com/questions/505453/why-does-cron-require-mta-for-logging)
-# Failures during actions (as defined in 'enabled_actions') will be sent to the notification script
+# Restic failures during actions (as defined in 'enabled_actions') will be sent to the notification script
 # regardless.
 set -e
 
@@ -29,9 +29,14 @@ restic_wrapper -b <backup_name> -a backup-full
     - purges old snapshots
     - checks repository integrity
 
-restic_wrapper -b <backup_name> -a run -r <restic command + parameters>
+restic_wrapper -b <backup_name> -a run -r "<restic command + parameters>"
   Directly run restic command, env file gets sourced. For example a 
-  value for -r could be 'snapshots' or 'help' to see Restic's documentation.
+  value for -r could be:
+  - "snapshots" to get a list of snapshots in this repository
+  - "help" to see Restic's documentation.
+  - "mount my_mountpoint" to mount a repository as a virtual filesystem.
+  - "restore latest -t my_restore" to restore the latest snapshot to a directory called 'my_restore'.
+  Make sure to enclose the full parameter to option -r in double quotes to properly pass it to restic!
 
 restic_wrapper -a export-config
   Bundles all config files into a tarball in the current directory.
