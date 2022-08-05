@@ -35,6 +35,8 @@ When you have created the config files it might be wise to back them up for safe
 
 If you have not initialized a Restic repository at the location you set in `RESTIC_REPOSITORY` be sure to create one using `./restic_wrapper -a run -r init`.
 
+You are now ready to use the wrapper. See `./restic_wrapper -h` for all options.
+
 ## Notifications
 
 By default restic-wrapper outputs all status information to the terminal. You can route that output to the `restic_notify` script by providing the `-m` flag like so: `./restic_wrapper -b cheesefactory -a backup -m`.
