@@ -1,3 +1,0 @@
-*.env
-*.excludefile
-restic_wrapper-configs-*.tar.gz

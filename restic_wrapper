@@ -51,6 +51,7 @@ EOF
 ##################
 SCRIPT=`realpath $0`
 SCRIPTPATH=`dirname $SCRIPT`
+cd $SCRIPTPATH
 
 while getopts mb:a:r: arg; do
   case $arg in
@@ -71,8 +72,8 @@ done
 ### source and initialize variables ###
 #######################################
 if [[ "$ACTION" != "export-config" ]]; then
-    source $SCRIPTPATH/$BACKUP_NAME.env
-    RESTIC_EXCLUDE_FILE=$SCRIPTPATH/$BACKUP_NAME.excludefile
+    source $SCRIPTPATH/configs/$BACKUP_NAME.env
+    RESTIC_EXCLUDE_FILE=$SCRIPTPATH/configs/$BACKUP_NAME.excludefile
     LOGFILE=/tmp/restic_wrapper_log_$BACKUP_NAME-`date_now_safe`.log
 fi
 
@@ -83,8 +84,9 @@ export GODEBUG='asyncpreemptoff=1'
 ### definition of actions ###
 function export-config {
     ARCHIVE_NAME=restic_wrapper-configs-`date_now_safe`.tar.gz
+    cd configs
     tar cf $ARCHIVE_NAME *.env *.excludefile
-    echo "Configs exported to $ARCHIVE_NAME. Please keep this file safe and don't lose it!"
+    echo "Configs exported to configs/$ARCHIVE_NAME. Please keep this file safe and don't lose it!"
 }
 
 function backup {
