@@ -22,6 +22,7 @@ By default restic-wrapper outputs all status information to the terminal. You ca
 
 The `restic_notify` script in this repository sends email over SMTP and sets the subject according to whether or not the backup job succeeded. Mail is sent using `s-nail` so be sure to install that on your system.
 
+See `configs/smtp.env.example` and rename it to `configs/smtp.env`.
 
 ## Scheduled execution
 You can set up a cronjob for (for example) nightly backups at 3:30.
