@@ -4,15 +4,6 @@ This wrapper attempts to make running restic a bit easier. It reads configuratio
 
 This script should work without problems on most linux distributions. I can not vouch for OSX but feedback is welcome.
 
-<!-- TOC GFM -->
-
-- [Setup](#setup)
-- [Notifications](#notifications)
-- [Scheduled execution](#scheduled-execution)
-- [Changelog](#changelog)
-
-<!-- /TOC -->
-
 ## Setup
 
 After checking out this repo (or just downloading the script) create config files in the `configs/` directory. There is already an example in this directory. The file name of the `.env` file dictates the 'job name'. You will need this later. Please be aware that you currently need to create an `excludefile` even if you are not using any excludes. This file can be empty.
@@ -42,7 +33,10 @@ You can set up a cronjob for (for example) nightly backups at 3:30.
 If your system has an [MTA](https://cronitor.io/cron-reference/no-mta-installed-discarding-output) installed you will also get email if restic_wrapper itself fails for some reason but because most users do not have a properly configured MTA I chose to integrate basic notification functionality in restic_wrapper. Another advantage of letting restic_wrapper handle the notifications is that it can send different mails for failed and succeeded jobs without needing a lot of bash magic (which not everyone might be comfortable with).
 
 ## Changelog
-- **v0.3.0**: Keep configs in separate dir, provide example configs (also for rclone)
+- **v0.3.0**: 
+  - Keep configs in separate dir
+  - provide example configs (also for rclone)
+  - make `restic_notify` compatible with newer versions of `s-nail`
 - **v0.2.1**: Miscellaneous documentation updates.
 - **v0.2.0**: Externalize notification functionality to make the script a lot simpler (and refactored a bunch).
 - **v0.1.0**: Added `export-config` option to create a tarball of all your config files.
